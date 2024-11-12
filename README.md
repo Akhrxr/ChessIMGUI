@@ -131,4 +131,12 @@ This project is licensed under the MIT License.
 - Original game engine framework by [ocornut](https://github.com/ocornut/imgui)
 
 ---
-*This README is part of an educational project and is intended to serve as an example of good documentation practices.*
+*This README is part of an educational project and is intended to serve as an example of good documentation practices.*![alt text]
+
+![Bishop](image.png)
+![GameBoard](ScreenShots/Gameboard.png)
+![KingMoves](ScreenShots/KingMoves.png)
+![KnightMoves](ScreenShots/KnightMoves.png)
+![PawnMoves](ScreenShots/PawnMoves.png)
+![QueenMoves](ScreenShots/QueenMoves.png)
+![RookMoves](ScreenShots/RookMoves.png)
