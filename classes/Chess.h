@@ -42,7 +42,7 @@ public:
 	void        updateAI() override;
     bool        gameHasAI() override { return true; }
 
-    std::vector<int> generateSlidingMoves(int srcIndex, const std::vector<int>& directions);
+    std::vector<int> generateSlidingMoves(int srcIndex, ChessPiece pieceType);
     std::vector<int> generateNonSlidingMoves(int srcIndex, const std::vector<int>& offsets);
     std::vector<int> generatePawnMoves(int srcIndex, int playerNumber);
 

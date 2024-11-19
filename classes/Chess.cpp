@@ -2,7 +2,7 @@
 
 const int AI_PLAYER = 1;
 const int HUMAN_PLAYER = -1;
-const int DirectionOffsets[] = {8, -8, 1, -1, 9, -7, -9, 7}; // North, South, East, West, and diagonals
+const int DirectionOffsets[] =  {8, -8, -1, 1, 7, 9, -9, -7}; // North, South, West, East, and NW, NE, SW, SE
 int NumSquaresToEdge[64][8]; // 8 directions per square
 
 Chess::Chess()
@@ -16,6 +16,8 @@ Chess::~Chess()
 //
 // make a chess piece for the player
 //
+
+
 Bit* Chess::PieceForPlayer(const int playerNumber, ChessPiece piece)
 {
     const char* pieces[] = { "pawn.png", "knight.png", "bishop.png", "rook.png", "queen.png", "king.png" };
@@ -126,13 +128,13 @@ bool Chess::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst)
 
     switch (pieceType) {
         case Rook:
-            validMoves = generateSlidingMoves(srcIndex, {0, 1, 2, 3}); // N, S, E, W
+            validMoves = generateSlidingMoves(srcIndex, Rook); // N, S, E, W
             break;
         case Bishop:
-            validMoves = generateSlidingMoves(srcIndex, {4, 5, 6, 7}); // Diagonals
+            validMoves = generateSlidingMoves(srcIndex, Bishop); // Diagonals
             break;
         case Queen:
-            validMoves = generateSlidingMoves(srcIndex, {0, 1, 2, 3, 4, 5, 6, 7}); // All directions
+            validMoves = generateSlidingMoves(srcIndex, Queen); // All directions
             break;
         case King:
             validMoves = generateNonSlidingMoves(srcIndex, {8, -8, 1, -1, 7, -7, 9, -9}); // All directions
@@ -156,7 +158,6 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) {
     // If the destination holder has an opponent's piece, capture it
     Bit* dstBit = dst.bit();
     if (dstBit && dstBit->getOwner() != bit.getOwner()) {
-        std::cout << "Captured piece with gameTag: " << dstBit->gameTag() << std::endl;
         dst.destroyBit(); // Remove the opponent's piece
     }
 
@@ -168,7 +169,6 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) {
 
     // End the turn after a successful move
     endTurn();
-    std::cout << "Turn ended. Next player is: " << getCurrentPlayer()->playerNumber() << std::endl;
 }
 
 //
@@ -268,48 +268,42 @@ int Chess::findIndexInGrid(const BitHolder& holder) {
 
 ////////////MoveSets/////////////////
 //Rook,Queen,Bishops use these
-std::vector<int> Chess::generateSlidingMoves(int srcIndex, const std::vector<int>& directions) {
+std::vector<int> Chess::generateSlidingMoves(int srcIndex, ChessPiece pieceType) {
     std::vector<int> moves;
 
-    for (int dir : directions) {
-        int offset = DirectionOffsets[dir];
-        int maxSquares = NumSquaresToEdge[srcIndex][dir];
+    int srcRow = srcIndex / 8;
+    int srcCol = srcIndex % 8;
 
-        // Loop through each square in the specified direction
-        for (int i = 1; i <= maxSquares; ++i) {
-            int targetIndex = srcIndex + i * offset;
+    int startDirIndex = (pieceType == Bishop) ? 4 : 0;
+    int endDirIndex = (pieceType == Rook) ? 4 : 8;
 
-            // Ensure the target index is within bounds (0 to 63)
-            if (targetIndex < 0 || targetIndex >= 64) {
-                break; // Stop if out of bounds
-            }
+    for (int directionIndex = startDirIndex; directionIndex < endDirIndex; directionIndex++) {
+        int maxSquares = NumSquaresToEdge[srcIndex][directionIndex];
 
-            // Check if the move wraps around the board horizontally
-            int srcRow = srcIndex / 8;
-            int targetRow = targetIndex / 8;
-            if (std::abs((targetIndex % 8) - (srcIndex % 8)) > i) {
-                break; // Stop if the move wraps around horizontally
-            }
+        for (int n = 0; n < maxSquares; n++) {
+            int targetIndex = srcIndex + DirectionOffsets[directionIndex] * (n+1);
 
-            // Access the target square from _grid
-            int targetCol = targetIndex % 8;
-            Bit* targetBit = _grid[targetRow][targetCol].bit();
+            // Directly use NumSquaresToEdge, no additional bounds check needed
+            Bit* targetBit = _grid[targetIndex / 8][targetIndex % 8].bit();
 
             // If there's a piece on the target square
             if (targetBit) {
                 // Check if it's an opponent's piece
-                if (targetBit->getOwner() != _grid[srcRow][srcIndex % 8].bit()->getOwner()) {
+                if (targetBit->getOwner() != _grid[srcRow][srcCol].bit()->getOwner()) {
                     moves.push_back(targetIndex); // Capture move
                 }
-                break; // Stop sliding in this direction
+                break; // Stop sliding in this direction after encountering a piece
             }
 
             // Add the valid move
             moves.push_back(targetIndex);
         }
     }
+
     return moves;
 }
+
+
 
 
 //Knights and Kings
@@ -386,34 +380,25 @@ void Chess::updateAI()
 
 
 
-
-
-
-
-
-
-
 void Chess::initializeNumSquaresToEdge() {
-    for (int rank = 0; rank < 8; ++rank) {
-        for (int file = 0; file < 8; ++file) {
+    for (int file = 0; file < 8; file++) {
+        for (int rank = 0; rank < 8; rank++) {
+
+            int numNorth = 7 - rank;
+            int numSouth = rank;
+            int numWest = file;
+            int numEast = 7 - file;
+
             int squareIndex = rank * 8 + file;
 
-            // North (up the board)
-            NumSquaresToEdge[squareIndex][0] = 7 - rank;
-            // South (down the board)
-            NumSquaresToEdge[squareIndex][1] = rank;
-            // East (right)
-            NumSquaresToEdge[squareIndex][2] = 7 - file;
-            // West (left)
-            NumSquaresToEdge[squareIndex][3] = file;
-            // Northeast (up and to the right)
-            NumSquaresToEdge[squareIndex][4] = std::min(7 - rank, 7 - file);
-            // Northwest (up and to the left)
-            NumSquaresToEdge[squareIndex][5] = std::min(7 - rank, file);
-            // Southeast (down and to the right)
-            NumSquaresToEdge[squareIndex][6] = std::min(rank, 7 - file);
-            // Southwest (down and to the left)
-            NumSquaresToEdge[squareIndex][7] = std::min(rank, file);
-        }
+            NumSquaresToEdge[squareIndex][0] = numNorth;                      // North
+            NumSquaresToEdge[squareIndex][1] = numSouth;                      // South
+            NumSquaresToEdge[squareIndex][2] = numWest;                       // West
+            NumSquaresToEdge[squareIndex][3] = numEast;                       // East
+            NumSquaresToEdge[squareIndex][4] = std::min(numNorth, numWest);   // Northwest
+            NumSquaresToEdge[squareIndex][5] = std::min(numNorth, numEast);   // Northeast
+            NumSquaresToEdge[squareIndex][6] = std::min(numSouth, numWest);   // Southwest
+            NumSquaresToEdge[squareIndex][7] = std::min(numSouth, numEast);   // Southeast
+            };
     }
 }
