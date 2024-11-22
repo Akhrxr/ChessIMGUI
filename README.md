@@ -1,5 +1,49 @@
 # Chess AI Implementation Project
 
+
+In this version of the Chess project. I added the ability to castle, en passant, and promoting the pawn to a queen. 
+There is also the capability of starting a game with a fen string, as well as the begginings to saving the game
+    into a fen string.
+I did this by first including checks to each of the new abilities added. For castling, it must
+    check if either the king or rook (either side) has moved yet, and if there is empty space between the two pieces.
+In order to promote to queen, once the pawn reaches the other side of the board, the piece is deleted and replaced by a queen piece.
+For en passant, I added a check to see where the square that the pawn would have been if they have done a double move on their first move and nothing since.
+    With this check the other player can step into that square (index) and take that pawn.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 ![Chess Board](https://raw.githubusercontent.com/zaphodgjd/class-chess-123/main/chess/w_king.png)
 
 ## 🎯 Project Overview

@@ -49,6 +49,13 @@ public:
     int     findIndexInGrid(const BitHolder& holder);
     void    initializeNumSquaresToEdge();
 
+    void    FENtoBoard(const std::string& fen);
+    std::string boardToFEN();
+
+    void    handleCastling(int srcIndex, int dstIndex, int playerNumber);
+    void    handlePawnPromotion(Bit &bit, int dstIndex);
+    void    handleEnPassant(int srcIndex, int dstIndex, int playerNumber);
+
 private:
     Bit *       PieceForPlayer(const int playerNumber, ChessPiece piece);
     const char  bitToPieceNotation(int row, int column) const;

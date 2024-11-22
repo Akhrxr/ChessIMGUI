@@ -18,8 +18,6 @@ Bit *BitHolder::bit()
 {
 	if (_bit && _bit->getParent() != this && !_bit->getPickedUp())
 	{
-		std::cout << "bit before nullptr is : " << _bit << std::endl;
-		std::cout << "this in bit() is : " << this << std::endl;
 		_bit = nullptr;
 	}
 	return _bit;

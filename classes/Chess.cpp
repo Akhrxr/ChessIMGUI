@@ -1,9 +1,17 @@
 #include "Chess.h"
 
+int enPassantSquare = -1;
 const int AI_PLAYER = 1;
 const int HUMAN_PLAYER = -1;
 const int DirectionOffsets[] =  {8, -8, -1, 1, 7, 9, -9, -7}; // North, South, West, East, and NW, NE, SW, SE
 int NumSquaresToEdge[64][8]; // 8 directions per square
+bool whiteKingMoved = false;
+bool whiteRookKingsideMoved = false;
+bool whiteRookQueensideMoved = false;
+
+bool blackKingMoved = false;
+bool blackRookKingsideMoved = false;
+bool blackRookQueensideMoved = false;
 
 Chess::Chess()
 {
@@ -53,7 +61,6 @@ void Chess::setUpBoard()
             _grid[y][x].setNotation(piece);
         }
     }
-
     //lambda function so I don't have to keep writing setPosition, setParent, and setGameTag for everything.
     auto placePiece = [&](int y, int x, int player, ChessPiece type) {
         Bit* bit = PieceForPlayer(player, type);
@@ -62,7 +69,7 @@ void Chess::setUpBoard()
         bit->setGameTag(type);
         _grid[y][x].setBit(bit);
     };
-
+    /*
     //Black
     placePiece(7, 0, 1, Rook);   
     placePiece(7, 1, 1, Knight); 
@@ -87,7 +94,9 @@ void Chess::setUpBoard()
     placePiece(0, 7, 0, Rook);  
     for (int i = 0; i < 8; i++) {
         placePiece(1, i, 0, Pawn);  // Row 2 A2 to H2
-    }
+    }*/
+    FENtoBoard("rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR");
+
 }
 
 //
@@ -138,6 +147,38 @@ bool Chess::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst)
             break;
         case King:
             validMoves = generateNonSlidingMoves(srcIndex, {8, -8, 1, -1, 7, -7, 9, -9}); // All directions
+            // Check for castling as a special case
+
+            if (!whiteKingMoved && srcIndex == 4) {
+                // White kingside castling
+                if (!whiteRookKingsideMoved && dstIndex == 6) {
+                    if (_grid[0][5].bit() == nullptr && _grid[0][6].bit() == nullptr) {
+                        return true; // Kingside castling is valid
+                    }
+                }
+                // White queenside castling
+                if (!whiteRookQueensideMoved && dstIndex == 2) {
+                    if (_grid[0][1].bit() == nullptr && _grid[0][2].bit() == nullptr && _grid[0][3].bit() == nullptr) {
+                        return true; // Queenside castling is valid
+                    }
+                }
+            }
+
+            if (!blackKingMoved && srcIndex == 60) {
+                // Black kingside castling
+                if (!blackRookKingsideMoved && dstIndex == 62) {
+                    if (_grid[7][5].bit() == nullptr && _grid[7][6].bit() == nullptr) {
+                        return true; // Kingside castling is valid
+                    }
+                }
+                // Black queenside castling
+                if (!blackRookQueensideMoved && dstIndex == 58) {
+                    if (_grid[7][1].bit() == nullptr && _grid[7][2].bit() == nullptr && _grid[7][3].bit() == nullptr) {
+                        return true; // Queenside castling is valid
+                    }
+                }
+            }
+
             break;
         case Knight:
             validMoves = generateNonSlidingMoves(srcIndex, {15, 17, -15, -17, 10, -10, 6, -6}); // Knight moves
@@ -152,13 +193,46 @@ bool Chess::canBitMoveFromTo(Bit& bit, BitHolder& src, BitHolder& dst)
     return std::find(validMoves.begin(), validMoves.end(), dstIndex) != validMoves.end();
 }
 
-void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) {
+void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) 
+{
+    int srcIndex = findIndexInGrid(src);
+    int dstIndex = findIndexInGrid(dst);
+    ChessPiece pieceType = static_cast<ChessPiece>(bit.gameTag());
     src.setBit(nullptr);
-
     // If the destination holder has an opponent's piece, capture it
     Bit* dstBit = dst.bit();
     if (dstBit && dstBit->getOwner() != bit.getOwner()) {
         dst.destroyBit(); // Remove the opponent's piece
+    }
+
+    if (pieceType == King) {
+        handleCastling(srcIndex, dstIndex, bit.getOwner()->playerNumber());
+        // Mark the king as moved
+        if (bit.getOwner()->playerNumber() == 0) whiteKingMoved = true;
+        else blackKingMoved = true;
+    }
+
+    if (pieceType == Rook) {
+        // Mark the rook as moved
+        if (srcIndex == 63) whiteRookKingsideMoved = true;  // White kingside rook
+        if (srcIndex == 56) whiteRookQueensideMoved = true; // White queenside rook
+        if (srcIndex == 7) blackRookKingsideMoved = true;   // Black kingside rook
+        if (srcIndex == 0) blackRookQueensideMoved = true;  // Black queenside rook
+    }
+    if (pieceType == Pawn && std::abs(srcIndex - dstIndex) == 16) 
+    {
+        enPassantSquare = (srcIndex + dstIndex) / 2; // Set the square behind the pawn
+    } else 
+    {
+        enPassantSquare = -1; // Reset if no pawn moved two spaces
+    }
+
+    if (pieceType == Pawn) {
+        handlePawnPromotion(bit, dstIndex);
+        if (_grid[srcIndex / 8][srcIndex % 8].bit()) 
+        { 
+            handleEnPassant(srcIndex, dstIndex, bit.getOwner()->playerNumber());
+        }
     }
 
     // Place the piece in the destination holder
@@ -167,6 +241,8 @@ void Chess::bitMovedFromTo(Bit &bit, BitHolder &src, BitHolder &dst) {
     bit.setParent(&dst);
     bit.moveTo(dst.getPosition());
 
+    std::cout << "FEN string parsed successfully. Current board setup:" << std::endl;
+    std::cout << boardToFEN() << std::endl;
     // End the turn after a successful move
     endTurn();
 }
@@ -204,12 +280,117 @@ const char Chess::bitToPieceNotation(int row, int column) const {
     unsigned char notation = '0';
     Bit* bit = _grid[row][column].bit();
     if (bit) {
+        /*
         notation = bit->gameTag() < 128 ? wpieces[bit->gameTag()] : bpieces[bit->gameTag() & 127];
     } else {
-        notation = '0';
+        notation = '0'; */
+        int gameTag = bit->gameTag();
+
+        // Validate gameTag range
+        if (gameTag >= 1 && gameTag <= 6) {
+            return (bit->getOwner()->playerNumber() == 0) ? wpieces[gameTag] : bpieces[gameTag];
+        } else {
+            std::cerr << "Invalid gameTag: " << gameTag << " at row: " << row << ", column: " << column << std::endl;
+            return '?'; // Unknown piece
+        }
     }
     return notation;
 }
+
+//Puts the Fen string into the board
+void Chess::FENtoBoard(const std::string& fen) {
+    int row = 7;
+    int column = 0;
+
+    for (char c : fen) {
+        if (c == '/') {
+            // Move to the next row
+            row--;
+            column = 0;
+        } else if (isdigit(c)) {
+            // Skip empty squares
+            column += c - '0';
+        } else {
+            // Place the corresponding piece
+            int player = isupper(c) ? 0 : 1; // Uppercase is White, Lowercase is Black
+            ChessPiece piece;
+
+            switch (tolower(c)) {
+                case 'p': piece = Pawn; break;
+                case 'r': piece = Rook; break;
+                case 'n': piece = Knight; break;
+                case 'b': piece = Bishop; break;
+                case 'q': piece = Queen; break;
+                case 'k': piece = King; break;
+                default: continue;
+            }
+
+            if (row >= 0 && column < 8) {
+                Bit* bit = PieceForPlayer(player, piece);
+                bit->setPosition(_grid[row][column].getPosition());
+                bit->setParent(&_grid[row][column]);
+                bit->setGameTag(piece);
+                _grid[row][column].setBit(bit);
+            }
+
+            column++; // Move to next column
+        }
+
+        if (row < 0) {
+            break; // Stops from going past the board
+        }
+    }
+}
+
+//Turns the board to Fen Notation
+std::string Chess::boardToFEN() {
+    std::string fen;
+    for (int row = 7; row >= 0; row--) {
+        int emptyCount = 0;
+        for (int col = 0; col < 8; col++) {
+            Bit* bit = _grid[row][col].bit();
+            if (bit) {
+                if (emptyCount > 0) {
+                    fen += std::to_string(emptyCount);
+                    emptyCount = 0;
+                }
+                char pieceChar = bitToPieceNotation(row, col);
+                fen += pieceChar;
+            } else {
+                emptyCount++;
+            }
+        }
+        if (emptyCount > 0) {
+            fen += std::to_string(emptyCount);
+        }
+        if (row > 0) {
+            fen += '/';
+        }
+    }
+    return fen;
+}
+
+//Makes sure that the fen is not malformed or messed up in anyway
+bool validateFEN(const std::string& fen) {
+    int rowCount = 1, squareCount = 0;
+
+    for (char c : fen) {
+        if (c == '/') {
+            rowCount++;
+            if (squareCount != 8) return false;
+            squareCount = 0;
+        } else if (isdigit(c)) {
+            squareCount += c - '0';
+        } else if (strchr("pPnNbBrRqQkK", c)) {
+            squareCount++;
+        } else {
+            return false; // Invalid character
+        }
+        if (squareCount > 8) return false;
+    }
+    return rowCount == 8 && squareCount == 8;
+}
+
 
 //
 // state strings
@@ -366,6 +547,9 @@ std::vector<int> Chess::generatePawnMoves(int srcIndex, int playerNumber) {
         if (targetBit && targetBit->getOwner() != _grid[srcIndex / 8][srcIndex % 8].bit()->getOwner()) {
             moves.push_back(targetIndex);
         }
+        if (targetBit == nullptr && enPassantSquare == targetIndex) {
+                moves.push_back(targetIndex);
+        }
     }
 
     return moves;
@@ -378,6 +562,67 @@ void Chess::updateAI()
 {
 }
 
+void Chess::handleCastling(int srcIndex, int dstIndex, int playerNumber) {
+    if (playerNumber == 0) { // White
+        if (srcIndex == 4 && dstIndex == 6) { // Kingside castling
+            Bit* rook = _grid[0][7].bit();
+            _grid[0][5].setBit(rook);
+            rook->setParent(&_grid[0][5]);
+            rook->moveTo(_grid[0][5].getPosition());
+            _grid[0][7].setBit(nullptr); // Clear original rook position
+        } else if (srcIndex == 4 && dstIndex == 2) { // Queenside castling
+            Bit* rook = _grid[0][0].bit();
+            _grid[0][3].setBit(rook);
+            rook->setParent(&_grid[0][3]);
+            rook->moveTo(_grid[0][3].getPosition());
+            _grid[0][0].setBit(nullptr); // Clear original rook position
+        }
+    } else { // Black
+        if (srcIndex == 60 && dstIndex == 62) { // Kingside castling
+            Bit* rook = _grid[7][7].bit();
+            _grid[7][5].setBit(rook);
+            rook->setParent(&_grid[7][5]);
+            rook->moveTo(_grid[7][5].getPosition());
+            _grid[7][7].setBit(nullptr); // Clear original rook position
+        } else if (srcIndex == 60 && dstIndex == 58) { // Queenside castling
+            Bit* rook = _grid[7][0].bit();
+            _grid[7][3].setBit(rook);
+            rook->setParent(&_grid[7][3]);
+            rook->moveTo(_grid[7][3].getPosition());
+            _grid[7][0].setBit(nullptr); // Clear original rook position
+        }
+    }
+}
+
+void Chess::handlePawnPromotion(Bit &bit, int dstIndex) {
+    if (bit.gameTag() == Pawn) {
+        int row = dstIndex / 8;
+        int col = dstIndex % 8;
+        int playerNumber = bit.getOwner()->playerNumber();
+
+        if ((playerNumber == 0 && row == 7) || (playerNumber == 1 && row == 0)) 
+            {
+                bit.setGameTag(Queen); // Update the gameTag to Queen
+                bit.LoadTextureFromFile(playerNumber == 0 ? "chess/w_queen.png" : "chess/b_queen.png"); // Update the texture
+                bit.setOwner(getPlayerAt(playerNumber));
+                bit.setSize(pieceSize, pieceSize);
+                std::cout << "Pawn promoted to Queen at row: " << row << ", col: " << col << std::endl;
+            }
+    }
+}
+
+void Chess::handleEnPassant(int srcIndex, int dstIndex, int playerNumber) {
+    if (abs(srcIndex - dstIndex) == 9 || abs(srcIndex - dstIndex) == 7) {
+        // Check if it was an en passant capture
+        int capturedPawnIndex = (playerNumber == 0) ? dstIndex + 8 : dstIndex - 8;
+        Bit* capturedPawn = _grid[capturedPawnIndex / 8][capturedPawnIndex % 8].bit();
+
+        if (capturedPawn && capturedPawn->gameTag() == Pawn) {
+            // Remove the captured pawn
+            _grid[capturedPawnIndex / 8][capturedPawnIndex % 8].setBit(nullptr);
+        }
+    }
+}
 
 
 void Chess::initializeNumSquaresToEdge() {

@@ -31,8 +31,6 @@ bool ChessSquare::canDropBitAtPoint(Bit *newbit, const ImVec2 &point)
 
 bool ChessSquare::dropBitAtPoint(Bit *newbit, const ImVec2 &point)
 {
-    /*std::cout << "this is : " <<  this << std::endl;
-    std::cout << "Current Piece is : " << newbit->gameTag() << std::endl;*/
     if (bit() == nullptr)
     {
         setBit(newbit);
@@ -43,7 +41,6 @@ bool ChessSquare::dropBitAtPoint(Bit *newbit, const ImVec2 &point)
     // we're taking a piece!
     if (bit()->getOwner() != newbit->getOwner())
     {
-        std::cout << "Captured piece with gameTag: " << bit()->gameTag() << std::endl;
         destroyBit();
         setBit(newbit);
         newbit->setParent(this);
